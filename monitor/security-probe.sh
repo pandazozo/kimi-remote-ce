@@ -8,7 +8,7 @@ set -u
 REMOTE="${REMOTE:-opc-prod}"
 LOG_PATH="${LOG_PATH:-/var/log/nginx/access.log}"
 STATE_FILE="${STATE_FILE:-$HOME/.kimi-remote-secprobe.state}"
-ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-ou_c3efb4bab62fd9b84d41d90b024f8394}"
+ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-}"
 LARK_CLI="${LARK_CLI:-$(command -v lark-cli || command -v lark-cli)}"
 # 阈值(5 分钟窗口):同 IP 登录 401 ≥10 次;全站 403 ≥20 次;429 ≥5 次
 TH_LOGIN_401=10; TH_403=20; TH_429=5
@@ -19,7 +19,7 @@ offset=0; last_alert=0
 now=$(date +%s)
 save() { printf 'offset=%s\nlast_alert=%s\n' "$offset" "$last_alert" > "$STATE_FILE"; }
 
-send() {
+send() { [ -z "$ALERT_USER_OPEN_ID" ] && return 0 # 未配置告警通道则静默
   LARKSUITE_CLI_NO_UPDATE_NOTIFIER=1 "$LARK_CLI" im +messages-send --as bot \
     --user-id "$ALERT_USER_OPEN_ID" --text "$1" \
     --idempotency-key "$(uuidgen | tr '[:upper:]' '[:lower:]')" >/dev/null 2>&1

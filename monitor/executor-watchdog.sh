@@ -11,7 +11,7 @@ set -u
 ADAPTER_URL="${ADAPTER_URL:-http://127.0.0.1:58629}"
 ADAPTER_ENV="${ADAPTER_ENV:-$HOME/.kimi-remote-adapter.env}"
 STATE_FILE="${STATE_FILE:-$HOME/.kimi-remote-executor-watchdog.state}"
-ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-ou_c3efb4bab62fd9b84d41d90b024f8394}"
+ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-}"
 LARK_CLI="${LARK_CLI:-$(command -v lark-cli || command -v lark-cli)}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-120}"
 POLL_EVERY=6
@@ -26,7 +26,7 @@ fails=0; last_alert=0; alerting=0
 [ -f "$STATE_FILE" ] && source "$STATE_FILE"
 now=$(date +%s)
 save() { printf 'fails=%s\nlast_alert=%s\nalerting=%s\n' "$fails" "$last_alert" "$alerting" > "$STATE_FILE"; }
-send() {
+send() { [ -z "$ALERT_USER_OPEN_ID" ] && return 0 # 未配置告警通道则静默
   LARKSUITE_CLI_NO_UPDATE_NOTIFIER=1 "$LARK_CLI" im +messages-send --as bot \
     --user-id "$ALERT_USER_OPEN_ID" --text "$1" \
     --idempotency-key "$(uuidgen | tr '[:upper:]' '[:lower:]')" >/dev/null 2>&1

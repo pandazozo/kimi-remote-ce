@@ -5,7 +5,7 @@
 # 手动测试: PROBE_URL=http://127.0.0.1:59999 ./health-probe.sh (连跑 3 次应触发一次告警)
 set -u
 
-PROBE_URL="${PROBE_URL:-https://kimi.pengpengco.com/healthz}"
+PROBE_URL="${PROBE_URL:?need PROBE_URL}"
 STATE_FILE="${STATE_FILE:-$HOME/.kimi-remote-health.state}"
 ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-}"
 LARK_CLI="${LARK_CLI:-$(command -v lark-cli || command -v lark-cli)}"
@@ -19,7 +19,7 @@ now=$(date +%s)
 
 save() { printf 'fails=%s\nlast_alert=%s\nalerting=%s\n' "$fails" "$last_alert" "$alerting" > "$STATE_FILE"; }
 
-send() { # $1=消息文本
+send() { [ -z "$ALERT_USER_OPEN_ID" ] && return 0 # 未配置告警通道则静默
   LARKSUITE_CLI_NO_UPDATE_NOTIFIER=1 "$LARK_CLI" im +messages-send --as bot \
     --user-id "$ALERT_USER_OPEN_ID" --text "$1" \
     --idempotency-key "$(uuidgen | tr '[:upper:]' '[:lower:]')" >/dev/null 2>&1
