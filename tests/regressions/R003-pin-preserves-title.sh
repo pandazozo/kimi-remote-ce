@@ -4,7 +4,7 @@
 # 根因: overlay 路由把 title:undefined 传入补丁层,String(undefined) 物化落库
 # 出处: 2026-07-20 v0.4.3
 set -uo pipefail
-BASE="${BASE:-https://kimi.pengpengco.com}"
+BASE="${BASE:?need BASE}"
 PASSWORD="${PASSWORD:?need PASSWORD}"
 SID="${SID:?need SID(任一真实会话 id)}"
 JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT

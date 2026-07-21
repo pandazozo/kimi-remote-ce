@@ -6,7 +6,7 @@
 
 - 命名:`R<三位序号>-<slug>.sh`(如 `R001-questions-status-pending.sh`),序号递增不重用
 - 每个用例必须:①头部注释写清 现象/根因/出处(日期+commit)②可独立执行 ③退出码 0=通过
-- 环境变量:真实端点类用例读 `BASE`(默认 https://kimi.pengpengco.com)、`PASSWORD`、`TOKEN`(上游);纯逻辑类不依赖环境
+- 环境变量:真实端点类用例读 `BASE`(必填)、`PASSWORD`、`TOKEN`(上游);纯逻辑类不依赖环境
 - 不写脆弱断言(依赖具体会话标题/消息内容的,用结构断言代替)
 
 ## 用例索引
@@ -45,7 +45,7 @@
 # 根因:<技术根因一句话>
 # 出处:<日期 commit/版本>
 set -uo pipefail
-BASE="${BASE:-https://kimi.pengpengco.com}"
+BASE="${BASE:?need BASE}"
 # ... 断言;失败: echo "FAIL: 原因" >&2; exit 1
 echo "R<seq> OK"
 ```

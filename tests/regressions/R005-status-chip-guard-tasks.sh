@@ -8,7 +8,7 @@
 #       (refreshGuardTasks);切回页面立即 pollStatusOnce
 # 出处: 2026-07-20 v0.4.11
 set -uo pipefail
-BASE="${BASE:-https://kimi.pengpengco.com}"
+BASE="${BASE:?need BASE}"
 PASSWORD="${PASSWORD:?need PASSWORD}"
 SID="${SID:?need SID(任一真实会话 id)}"
 JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT

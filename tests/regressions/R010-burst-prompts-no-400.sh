@@ -7,7 +7,7 @@
 # 断言: 连发 5 个 prompt(间隔 2s)必须全部 HTTP 200,且全部进入会话消息流
 # 环境: BASE/PASSWORD
 set -uo pipefail
-BASE="${BASE:-https://kimi.pengpengco.com}"
+BASE="${BASE:?need BASE}"
 PASSWORD="${PASSWORD:?need PASSWORD}"
 JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT
 
