@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pengpeng.kimi-remote-executor-watchdog</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/essence/Work/pengpeng/kimi-remote/monitor/executor-watchdog.sh</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>600</integer>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/Users/essence/Library/Logs/kimi-remote-executor-watchdog.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/essence/Library/Logs/kimi-remote-executor-watchdog.log</string>
+</dict>
+</plist>

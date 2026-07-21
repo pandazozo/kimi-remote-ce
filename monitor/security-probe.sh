@@ -5,11 +5,11 @@
 # 手动测试: SEC_TEST=1 ./security-probe.sh (用内置假日志,应触发 1 条告警)
 set -u
 
-REMOTE="${REMOTE:?need REMOTE (your gateway ssh host)}"
+REMOTE="${REMOTE:-opc-prod}"
 LOG_PATH="${LOG_PATH:-/var/log/nginx/access.log}"
 STATE_FILE="${STATE_FILE:-$HOME/.kimi-remote-secprobe.state}"
-ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-YOUR_LARK_OPEN_ID}"
-LARK_CLI="${LARK_CLI:-$(command -v lark-cli || echo /Users/essence/.local/node/bin/lark-cli)}"
+ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-ou_c3efb4bab62fd9b84d41d90b024f8394}"
+LARK_CLI="${LARK_CLI:-$(command -v lark-cli || command -v lark-cli)}"
 # 阈值(5 分钟窗口):同 IP 登录 401 ≥10 次;全站 403 ≥20 次;429 ≥5 次
 TH_LOGIN_401=10; TH_403=20; TH_429=5
 ALERT_COOLDOWN_SEC=3600

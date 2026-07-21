@@ -12,8 +12,8 @@ set -u
 ADAPTER="${ADAPTER_URL:-http://127.0.0.1:58629}"
 ADAPTER_ENV="${ADAPTER_ENV:-$HOME/.kimi-remote-adapter.env}"
 MODE="${JANITOR_MODE:-dry}"
-ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-YOUR_LARK_OPEN_ID}"
-LARK_CLI="${LARK_CLI:-$(command -v lark-cli || echo /Users/essence/.local/node/bin/lark-cli)}"
+ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-ou_c3efb4bab62fd9b84d41d90b024f8394}"
+LARK_CLI="${LARK_CLI:-$(command -v lark-cli || command -v lark-cli)}"
 IDLE_DAYS="${IDLE_DAYS:-14}"
 
 TOKEN="${MACHINE_TOKEN:-$(grep -E '^MACHINE_TOKEN=' "$ADAPTER_ENV" 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"'")}"

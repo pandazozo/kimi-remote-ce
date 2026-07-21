@@ -12,8 +12,8 @@ const PORT = Number(process.env.FLEET_PORT || 58628);
 const HOST = process.env.FLEET_HOST || '127.0.0.1';
 const TOKEN = process.env.FLEET_TOKEN || '';
 const TAKEOVER_LOG = process.env.TAKEOVER_LOG || `${process.env.HOME}/.kimi-remote-takeover.log`;
-const CLAUDE_BIN = process.env.CLAUDE_BIN || '/Users/essence/.local/node/bin/claude';
-const CODEX_BIN = process.env.CODEX_BIN || '/Users/essence/.local/node/bin/codex';
+const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
+const CODEX_BIN = process.env.CODEX_BIN || 'codex';
 // launchd 环境 PATH 极简,npm 包的 env-node shebang 会找不到 node;把 agent 自己的 node 目录补进 PATH
 const NODE_DIR = path.dirname(process.execPath);
 function withNodePath(env) {
