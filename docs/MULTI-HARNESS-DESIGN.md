@@ -50,7 +50,7 @@
 ## 2. 修订后拓扑(补三条缝)
 
 ```
-手机 H5 ──HTTPS/WSS(JWT)──▶ 阿里云网关(opc-prod)
+手机 H5 ──HTTPS/WSS(JWT)──▶ 阿里云网关(your-gateway)
   ├─ allowlist 2.0:路径模板 × 能力位(/m/:machine/h/:harness/)
   ├─ 元数据表(新):用户 / machine token / 状态迁移+已读游标+上次打开(D-12)
   └─ 注册表:machine→隧道端口、能力清单、最后心跳
