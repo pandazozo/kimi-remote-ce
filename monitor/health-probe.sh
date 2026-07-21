@@ -7,7 +7,7 @@ set -u
 
 PROBE_URL="${PROBE_URL:-https://kimi.pengpengco.com/healthz}"
 STATE_FILE="${STATE_FILE:-$HOME/.kimi-remote-health.state}"
-ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-ou_c3efb4bab62fd9b84d41d90b024f8394}"
+ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-}"
 LARK_CLI="${LARK_CLI:-$(command -v lark-cli || command -v lark-cli)}"
 FAIL_THRESHOLD=3
 ALERT_COOLDOWN_SEC=1800   # 同类告警 30 分钟内不重复
