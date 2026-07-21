@@ -105,7 +105,7 @@ local_upgrade() {
 
 # ---------- 飞书 ----------
 LARK_CLI="${LARK_CLI:-$(command -v lark-cli || command -v lark-cli)}"
-ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-ou_c3efb4bab62fd9b84d41d90b024f8394}"
+ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-}"
 send() {
   LARKSUITE_CLI_NO_UPDATE_NOTIFIER=1 "$LARK_CLI" im +messages-send --as bot \
     --user-id "$ALERT_USER_OPEN_ID" --text "$1" \
