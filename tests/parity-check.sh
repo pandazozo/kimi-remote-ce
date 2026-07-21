@@ -1,7 +1,7 @@
 #!/bin/bash
 # parity-check — H5 显示数据 vs 上游真值 对账(owner 2026-07-20 要求的机制)
 # 逐会话核对:① busy 状态(列表 vs snapshot.in_flight_turn)② 最新消息(网关可见 vs 上游直连)
-# 用法: BASE=https://kimi.pengpengco.com PASSWORD=xxx TOKEN=<kimi-token> ./tests/parity-check.sh
+# 用法: BASE=https://your.domain PASSWORD=xxx TOKEN=<kimi-token> ./tests/parity-check.sh
 # 本机直连上游模式(推荐,绕过网关): TOKEN=xxx ./tests/parity-check.sh
 set -uo pipefail
 

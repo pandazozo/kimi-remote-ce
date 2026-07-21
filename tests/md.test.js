@@ -43,7 +43,7 @@ test('粗体/斜体/删除线', () => {
 });
 
 test('链接:http/https 放行,危险协议掐死', () => {
-  assert.ok(MD.render('[官网](https://kimi.pengpengco.com)').includes('href="https://kimi.pengpengco.com"'));
+  assert.ok(MD.render('[官网](https://example.com)').includes('href="https://example.com"'));
   const evil = MD.render('[点我](javascript:alert(1))');
   assert.ok(!evil.includes('javascript:'), 'javascript: 协议必须被移除');
   assert.ok(evil.includes('href="#"'));
