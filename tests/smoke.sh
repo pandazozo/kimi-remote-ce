@@ -1,6 +1,6 @@
 #!/bin/bash
 # kimi-remote 端到端冒烟测试
-# 用法: BASE=https://kimi.pengpengco.com PASSWORD='<登录密码>' ./tests/smoke.sh
+# 用法: BASE=https://your.domain PASSWORD='<登录密码>' ./tests/smoke.sh
 # 本地开发: BASE=http://127.0.0.1:8080 PASSWORD='kimi-remote-dev' ./tests/smoke.sh
 set -uo pipefail
 
