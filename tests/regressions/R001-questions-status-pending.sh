@@ -4,7 +4,7 @@
 # 根因: /questions 与 /approvals 端点裸调返回 40001(expected "pending"),必须带 ?status=pending
 # 出处: 2026-07-20 v0.4.2
 set -uo pipefail
-BASE="${BASE:-https://your.domain}"
+BASE="${BASE:-https://kimi.pengpengco.com}"
 PASSWORD="${PASSWORD:?need PASSWORD}"
 SID="${SID:?need SID(任一真实会话 id)}"
 JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT

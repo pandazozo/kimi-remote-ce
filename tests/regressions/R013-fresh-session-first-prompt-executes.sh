@@ -7,7 +7,7 @@
 # 断言: 建会话后立即(≤2s)发 prompt,120s 内必须出现 assistant 消息——守「诊断」场景
 # 环境: BASE/PASSWORD
 set -uo pipefail
-BASE="${BASE:-https://your.domain}"
+BASE="${BASE:-https://kimi.pengpengco.com}"
 PASSWORD="${PASSWORD:?need PASSWORD}"
 JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT
 

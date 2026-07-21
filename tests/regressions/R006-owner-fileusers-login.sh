@@ -4,7 +4,7 @@
 # 根因: 旧逻辑「有文件用户则禁用单 owner 密码」,语义过严
 # 出处: 2026-07-20 v0.4.0(此处为端到端复核;单测见 gateway/test/users.test.js)
 set -uo pipefail
-BASE="${BASE:-https://your.domain}"
+BASE="${BASE:-https://kimi.pengpengco.com}"
 PASSWORD="${PASSWORD:?need PASSWORD}"
 
 # owner 单密码(无用户名)必须能登录

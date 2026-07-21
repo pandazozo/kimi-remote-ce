@@ -765,10 +765,8 @@
     mask.innerHTML =
       '<div class="sheet"><h2>新建会话</h2>' +
       '<div class="field"><label>标题(可空)</label><input id="ns-title" placeholder="给会话起个名"></div>' +
-      '<div class="field"><label>工作目录 cwd</label><input id="ns-cwd" value="/Users/essence">' +
-      '<div class="chips"><button class="chip" data-cwd="/Users/essence">~</button>' +
-      '<button class="chip" data-cwd="/Users/essence/Work">~/Work</button>' +
-      '<button class="chip" data-cwd="/Users/essence/Work/pengpeng/kimi-remote">kimi-remote</button></div></div>' +
+      '<div class="field"><label>工作目录 cwd</label><input id="ns-cwd" value="~">' +
+      '<div class="chips" id="ns-cwd-chips"><button class="chip" data-cwd="~">~</button></div></div>' +
       '<div class="field"><label>模型</label><select id="ns-model"><option value="">默认</option></select></div>' +
       '<div class="field"><label>权限模式</label><select id="ns-perm">' +
       '<option value="auto" selected>auto(自动批准常规操作)</option>' +
@@ -796,9 +794,31 @@
       });
     }).catch(function () {});
 
+    // cwd 预填:本机 home + 最近工作区(fs:home,替代硬编码路径)
+    api('/api/v1/fs:home').then(function (d) {
+      var home = d && d.home;
+      if (!home) return;
+      var input = mask.querySelector('#ns-cwd');
+      input.value = home;
+      input.dataset.home = home;
+      var roots = (d.recent_roots || []).filter(function (r) { return r && r !== home; }).slice(0, 4);
+      var chips = mask.querySelector('#ns-cwd-chips');
+      if (!chips) return;
+      chips.innerHTML = '<button class="chip" data-cwd="' + escHtml(home) + '">~</button>';
+      roots.forEach(function (r) {
+        var b = el('button', 'chip', escHtml(r.replace(home, '~')));
+        b.dataset.cwd = r;
+        b.onclick = function () { input.value = r; };
+        chips.appendChild(b);
+      });
+      chips.querySelectorAll('.chip').forEach(function (c) {
+        c.onclick = function () { input.value = c.dataset.cwd; };
+      });
+    }).catch(function () {});
+
     mask.querySelector('#ns-ok').onclick = function () {
       var body = {
-        metadata: { cwd: mask.querySelector('#ns-cwd').value.trim() || '/Users/essence' },
+        metadata: { cwd: mask.querySelector('#ns-cwd').value.trim().replace(/^~(?=\/|$)/, mask.querySelector('#ns-cwd').dataset.home || '~') },
         agent_config: {
           permission_mode: mask.querySelector('#ns-perm').value,
           plan_mode: mask.querySelector('#ns-plan').checked,

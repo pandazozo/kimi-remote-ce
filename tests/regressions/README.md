@@ -6,7 +6,7 @@
 
 - 命名:`R<三位序号>-<slug>.sh`(如 `R001-questions-status-pending.sh`),序号递增不重用
 - 每个用例必须:①头部注释写清 现象/根因/出处(日期+commit)②可独立执行 ③退出码 0=通过
-- 环境变量:真实端点类用例读 `BASE`(默认 https://your.domain)、`PASSWORD`、`TOKEN`(上游);纯逻辑类不依赖环境
+- 环境变量:真实端点类用例读 `BASE`(默认 https://kimi.pengpengco.com)、`PASSWORD`、`TOKEN`(上游);纯逻辑类不依赖环境
 - 不写脆弱断言(依赖具体会话标题/消息内容的,用结构断言代替)
 
 ## 用例索引
@@ -30,7 +30,7 @@
 
 ## 手工验证步骤(纯前端交互,无法脚本化的部分)
 
-以下三项在**测试版**(test.your.domain)或本机验证后才能在正式版关闭:
+以下三项在**测试版**(test.kimi.pengpengco.com)或本机验证后才能在正式版关闭:
 
 - **R007 加载更早(交互半)**:打开一个消息 >50 条的 busy 会话 → 上滑到顶 → ①自动触发或点「加载更早消息」→ 更早消息出现且**视口不跳**(锚定在原消息)②等待 20s+(quiet 轮询/WS 事件发生后)**旧消息不被冲掉** ③继续上滑可再翻页,到最早后按钮消失。
 - **R008 系统注入(目视)**:同一会话里找 todo_list_reminder / 任务通知(`<notification>`)/ 交接备忘 消息 → 全部显示为「💉 …(非我本人输入)」折叠条,**不出现蓝色用户气泡**;菜单「只看我的输入」里也不含这些条目。
@@ -45,7 +45,7 @@
 # 根因:<技术根因一句话>
 # 出处:<日期 commit/版本>
 set -uo pipefail
-BASE="${BASE:-https://your.domain}"
+BASE="${BASE:-https://kimi.pengpengco.com}"
 # ... 断言;失败: echo "FAIL: 原因" >&2; exit 1
 echo "R<seq> OK"
 ```
