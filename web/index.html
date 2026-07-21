@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0e0e11">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta http-equiv="Cache-Control" content="no-store">
+<title>Kimi Remote</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css?v=0.4.11">
+</head>
+<body>
+<div id="app"></div>
+<div id="toast-root" aria-live="polite"></div>
+<script>
+// 客户端错误兜底:任何 JS 崩溃必须可见(不许静默死)
+window.APP_VERSION = '0.4.11';
+window.__krErr = function (msg) {
+  var t = document.createElement('div');
+  t.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:999;background:#4a1d1d;color:#ffb4b4;font:12px/1.5 monospace;padding:8px 12px;';
+  t.textContent = 'JS错误: ' + msg + ' (v' + window.APP_VERSION + ')';
+  document.body.appendChild(t);
+};
+window.addEventListener('error', function (e) { window.__krErr((e.message || 'unknown') + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno); });
+window.addEventListener('unhandledrejection', function (e) { window.__krErr('promise: ' + (e.reason && e.reason.message || e.reason || 'unknown')); });
+</script>
+<script src="md.js?v=0.4.11"></script>
+<script src="app.js?v=0.4.11"></script>
+</body>
+</html>

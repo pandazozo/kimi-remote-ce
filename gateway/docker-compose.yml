@@ -1,0 +1,21 @@
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
+    network_mode: host
+    env_file: ../deploy/.env
+    environment:
+      OVERLAY_FILE: /data/overlay.json
+      AUDIT_FILE: /data/audit.jsonl
+      USERS_FILE: /data/users.json
+      INVITES_FILE: /data/invites.json
+      MACHINES_FILE: /data/machines.json
+      AUTHORIZED_KEYS_FILE: /data/tunnel_authorized_keys
+    volumes:
+      - gateway-data:/data
+      - /home/tunnel/.ssh/authorized_keys:/data/tunnel_authorized_keys
+    restart: unless-stopped
+
+volumes:
+  gateway-data:

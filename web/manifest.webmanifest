@@ -1,0 +1,14 @@
+{
+  "name": "Kimi Remote",
+  "short_name": "Kimi Remote",
+  "description": "手机远程控制 Kimi Code",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0e0e11",
+  "background_color": "#0e0e11",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

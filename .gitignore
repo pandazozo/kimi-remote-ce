@@ -1,0 +1,7 @@
+# secrets & local env
+.env
+*.local
+# deps & build
+node_modules/
+# os junk
+.DS_Store
