@@ -1,48 +1,64 @@
-# kimi-remote
+# kimi-remote(社区版)
 
-手机远程控制本机 Kimi Code 的 H5 系统 —— 类似 ChatGPT / Claude App 的 remote 功能:随时随地通过手机访问、控制 Mac 上的全部 kimi code 会话,流式聊天、多文件上传(不限大小)、`/` 指令、审批与提问实时处理。
+**用手机/任意浏览器,远程驱动你工作站上的 AI 编程会话**——Kimi Code / Claude Code / Codex / Z Code / WorkBuddy,看状态、读消息、发指令、排队、上传附件、一键接管。
 
-- 生产入口:**https://your.domain**(opc-prod · 阿里云杭州 47.96.255.63)
-- 上游:`kimi server`(kimi code CLI 0.27+,REST + WebSocket + Web UI)
-- 属主:芃芃科技
-
-## 快速开始
-
-```bash
-# 本机开发(gateway 直连本机 kimi server)
-cp deploy/env.example gateway/.env   # 填 KIMI_TOKEN / LOGIN_PASSWORD_SCRYPT / JWT_SECRET,DEV_INSECURE_COOKIE=1
-cd gateway && npm install && npm start
-# 打开 http://127.0.0.1:8080
-
-# 冒烟测试
-BASE=http://127.0.0.1:8080 PASSWORD='kimi-remote-dev' ./tests/smoke.sh
-
-# 部署到测试环境(首次见 docs/DEPLOY.md;prod 只部署打过 tag 的版本)
-./deploy/deploy.sh test
+```
+手机浏览器 → 你的域名(网关,云服务器 docker) → SSH 隧道 → 你的 Mac → 各 AI CLI 会话
 ```
 
-## 目录地图
+## 为什么
 
-| 目录 | 说明 |
-|---|---|
-| `gateway/` | Node 20 安全网关:登录鉴权、转发白名单、REST 流式代理、WS 桥(唯一暴露面) |
-| `web/` | H5 单页(vanilla,无构建):登录 / 会话列表 / 聊天 / 上传 / `/` 指令 / 审批 |
-| `agent/` | Mac 侧:`tunnel.sh` + launchd plist,维持 kimi server 常驻与 SSH 反向隧道 |
-| `deploy/` | nginx vhost、deploy.sh、DNS upsert 脚本、env 模板 |
-| `tests/` | `smoke.sh` 端到端冒烟(登录→建会话→流式→上传→白名单) |
-| `docs/` | 架构 / API / 部署 / 安全 / 路线 / 决策日志 |
+- AI CLI 都长在终端里,离开工位就成了瞎子;这个系统让你的会话**随身带**
+- 不只一个 harness:五源会话聚合在一个「机群页」,壳(工具)和脑(模型)分开显示
+- 每个 bug 一个回归用例,带视觉走查的测试体系,双环境(正式/测试)部署
 
-## 文档
+## 快速开始(自托管,约 20 分钟)
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 架构与数据流、安全模型
-- [docs/API.md](docs/API.md) — 网关对外 API 与转发白名单
-- [docs/DEPLOY.md](docs/DEPLOY.md) — 首次部署、日常升级、回滚、排障
-- [docs/SECURITY.md](docs/SECURITY.md) — 威胁模型、凭证清单与轮换
-- [docs/ROADMAP.md](docs/ROADMAP.md) — 迭代路线
-- [docs/decisions.md](docs/decisions.md) — 关键决策(ADR)
+前置:一台有公网 IP 的云服务器(docker+nginx)+ 一个域名 + 一台 macOS 工作站(已登录 kimi CLI;可选 codex/claude CLI)+ 工作站能免密 ssh 到服务器。
 
-## 版本管理约定
+```bash
+git clone https://github.com/pandazozo/kimi-remote-ce && cd kimi-remote-ce
+cp config.example.env config.env        # 按注释填 ~8 项(域名/密码/服务器)
+sudo bash install/gateway.sh            # 在云服务器:装网关+nginx+证书,自检
+bash install/agent.sh                   # 在 Mac:装 kimi server+adapter+隧道,自检
+```
 
-- Conventional Commits(`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`)
-- `main` 主干 + `feat/*` 短分支;语义化版本 tag(`v0.1.0` 起);CHANGELOG 遵循 Keep a Changelog
-- 每次部署到生产前必须跑通 `tests/smoke.sh`
+打开 `https://你的域名`,用 `LOGIN_PASSWORD` 登录。详见 [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md)(功能矩阵/隔离声明/排障)。
+
+## 架构
+
+| 层 | 位置 | 职责 |
+|---|---|---|
+| `gateway/` | 云服务器(docker) | 域名/登录/多用户邀请/审计/白名单代理/WS 桥 |
+| `web/` | 网关托管的 H5 | 单页应用:会话列表/详情/排队/附件/机群页/接管 |
+| `adapters/` | 工作站 | 设备前门:模型注入、WS 订阅激活、多 harness 分发 |
+| `fleet/` | 工作站 | 五源会话探针(codex/claude/zcode/workbuddy 只读聚合)+ 接管执行 |
+| `monitor/` | 工作站 | 健康/执行器/会话 janitor 探针(可接飞书/webhook 告警) |
+| `install/` | — | 两个安装器,严谨自检 |
+| `tests/` | — | 分层测试:单元/每 bug 一回归/生产冒烟/视觉走查/真值对账 |
+
+## 隔离与安全
+
+- 你的账号、密钥、会话数据**只在你自己的机器上**;安装器在本机生成全部随机密钥,明文密码不落盘
+- 仓库不含任何部署方的域名/IP/密钥(发现请提 issue)
+- 无遥测;网关默认仅监听 127.0.0.1,由本机 nginx 反代
+- 逐跳代理头已按规范处理;网关有路径白名单(终端类接口不出机)
+
+## 功能速览
+
+- 会话全双工:发指令/排队(多条,逐条记时,支持插队引导)/打断/重命名/置顶/归档
+- 附件:任意文件上传(8MB+ 实测),图片走 file 引用不撞 1MB 上限
+- 交互卡:审批/AskUserQuestion 在输入框上方常驻,手机上直接点选
+- 机群页:五源会话聚合 + 生命体征卡 + 真实驱动模型标签 + 系统会话折叠
+- 接管:对 Claude Code·壳 / Codex 会话直接下指令(官方 CLI headless resume)
+- 测试体系:`tests/run-all.sh --full`(单元+回归+冒烟+视觉+对账)
+
+## 当前限制(如实)
+
+- 设备代理仅支持 macOS(linux 在 roadmap)
+- Z Code / WorkBuddy 接管待解锁(存储格式已破,见文档)
+- 中文界面为主
+
+## License
+
+MIT
