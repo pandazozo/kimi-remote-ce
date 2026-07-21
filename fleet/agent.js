@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { probeAll, getMessages } from './probe-core.js';
+import { probeAccounts } from './accounts-probe.js';
 
 const PORT = Number(process.env.FLEET_PORT || 58628);
 const HOST = process.env.FLEET_HOST || '127.0.0.1';
@@ -58,6 +59,28 @@ function claudeTakeover({ id, text, cwd }) {
           result: out ? String(out.result ?? '').slice(0, 4000) : '',
           session_id: out?.session_id || id,
           error: err ? String(stderr || err.message).slice(0, 500) : (out && out.is_error ? String(out.result).slice(0, 500) : ''),
+        });
+      });
+  });
+}
+
+// ZCode 接管:`node zcode.cjs --resume <id> -p <text>`(2026-07-21 攻坚破解,全自主无人工:
+// CLI 认 ~/.zcode/cli/config.json 的 "model":"provider/model" 字符串形 + provider 映射表,
+// 复用桌面端 v2 的 bigmodel apiKey,无需 OAuth;实测 --resume 记忆完整;task_id 与 CLI sess_id 一致)
+const ZCODE_CJS = process.env.ZCODE_CJS || '/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs';
+function zcodeTakeover({ id, text, cwd }) {
+  return new Promise((resolve) => {
+    const workdir = cwd && fs.existsSync(cwd) ? cwd : process.env.HOME;
+    const env = withNodePath({ ...process.env });
+    execFile(process.execPath, [ZCODE_CJS, '--resume', id, '-p', text],
+      { cwd: workdir, env, timeout: 300_000, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        const out = String(stdout || '').trim();
+        resolve({
+          ok: !err && !!out,
+          result: out.slice(0, 4000),
+          session_id: id,
+          error: err ? String(stderr || err.message).slice(0, 500) : '',
         });
       });
   });
@@ -121,6 +144,16 @@ const server = http.createServer(async (req, res) => {
     }
     return;
   }
+  if (url.pathname === '/fleet/accounts' && req.method === 'GET') {
+    try {
+      const items = probeAccounts(process.env);
+      res.end(JSON.stringify({ code: 0, msg: 'success', data: { items, generated_at: new Date().toISOString() } }));
+    } catch (e) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ code: 1, msg: String(e && e.message || e) }));
+    }
+    return;
+  }
   if (url.pathname === '/fleet/messages' && req.method === 'GET') {
     const h = url.searchParams.get('h');
     const id = url.searchParams.get('id') || '';
@@ -147,15 +180,17 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     const { harness, id, text, cwd } = body || {};
-    if (!['claude', 'codex'].includes(harness) || !id || typeof text !== 'string' || !text.trim()) {
+    if (!['claude', 'codex', 'zcode'].includes(harness) || !id || typeof text !== 'string' || !text.trim()) {
       res.statusCode = 400;
-      res.end(JSON.stringify({ code: 1, msg: 'takeover 目前支持 claude/codex;需 id 与 text' }));
+      res.end(JSON.stringify({ code: 1, msg: 'takeover 目前支持 claude/codex/zcode;需 id 与 text' }));
       return;
     }
     audit(`takeover ${harness} ${id} cwd=${cwd || '-'} len=${text.length}`);
     const r = harness === 'claude'
       ? await claudeTakeover({ id, text: text.trim(), cwd })
-      : await codexTakeover({ id, text: text.trim(), cwd });
+      : harness === 'codex'
+        ? await codexTakeover({ id, text: text.trim(), cwd })
+        : await zcodeTakeover({ id, text: text.trim(), cwd });
     audit(`  -> ok=${r.ok} ${r.error ? 'err=' + r.error.slice(0, 120) : 'result_len=' + r.result.length}`);
     res.statusCode = r.ok ? 200 : 502;
     res.end(JSON.stringify({ code: r.ok ? 0 : 1, msg: r.ok ? 'success' : (r.error || 'takeover failed'), data: r }));

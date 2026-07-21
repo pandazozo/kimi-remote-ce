@@ -11,7 +11,7 @@
 #       harness-upgrade.sh --report # 汇总三机版本表发飞书
 set -uo pipefail
 
-FLEET_TOOLS=( "@openai/codex:codex" "@anthropic-ai/claude-code:claude" "@google/gemini-cli:gemini" "opencode-ai:opencode" "mmx-cli:mmx" )
+FLEET_TOOLS=( "@openai/codex:codex" "@google/gemini-cli:gemini" "opencode-ai:opencode" "mmx-cli:mmx" )  # 2026-07-21 claude-code 全线下线(封号风控,owner 令),不再纳入升级
 BACKUP_ROOT="$HOME/.harness-backup"
 LEDGER="$HOME/.harness-upgrade.jsonl"
 LOG() { printf '%s\n' "$(date -u +%FT%TZ) $(hostname -s) $*" | tee -a "$LEDGER" >&2; }
@@ -67,7 +67,7 @@ upgrade_tool() { # $1=npm包名 $2=bin名
   fi
 
   # 冷备会话目录(只备有的;7 天滚动)
-  for d in ".codex/sessions" ".claude/projects" ".gemini/history" ".mmx/history"; do
+  for d in ".codex/sessions" ".gemini/history" ".mmx/history"; do  # 2026-07-21 摘 .claude/projects(claude 已下线)
     [ -d "$HOME/$d" ] && rsync -a --delete "$HOME/$d/" "$BACKUP_ROOT/$TODAY/$d/" 2>/dev/null || true
   done
 
@@ -136,7 +136,7 @@ fleet_report() {
   done
   for h in m1 m2ts; do
     out+="$h:\n"
-    v="$(ssh -o ConnectTimeout=8 -o BatchMode=yes "$h" "export PATH=\"\$HOME/.local/bin:\$HOME/.local/node/bin:/usr/local/bin:/opt/homebrew/bin:\$PATH\"; for b in codex claude gemini opencode mmx; do printf '%s | ' \"\$b:\$(\$b --version 2>/dev/null | head -1 || echo 未装)\"; done; echo" 2>/dev/null || echo unreachable)"
+    v="$(ssh -o ConnectTimeout=8 -o BatchMode=yes "$h" "export PATH=\"\$HOME/.local/bin:\$HOME/.local/node/bin:/usr/local/bin:/opt/homebrew/bin:\$PATH\"; for b in codex gemini opencode mmx; do printf '%s | ' \"\$b:\$(\$b --version 2>/dev/null | head -1 || echo 未装)\"; done; echo" 2>/dev/null || echo unreachable)"
     out+="  $v"
   done
   out+="kimi(本机): $(kimi --version 2>/dev/null || echo '?')(网关上锁,手动节奏)"

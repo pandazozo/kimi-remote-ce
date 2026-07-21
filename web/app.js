@@ -161,10 +161,13 @@
 
   var refreshInteractions = debounce(function () {
     if (!state.sid) return;
-    api('/api/v1/sessions/' + state.sid + '/approvals?status=pending').then(function (d) {
+    var sid0 = state.sid;
+    api('/api/v1/sessions/' + sid0 + '/approvals?status=pending').then(function (d) {
+      if (state.sid !== sid0) return; // 竞态护栏
       state.approvals = (d && d.items) || []; renderInteractionCards();
     }).catch(function () {});
-    api('/api/v1/sessions/' + state.sid + '/questions?status=pending').then(function (d) {
+    api('/api/v1/sessions/' + sid0 + '/questions?status=pending').then(function (d) {
+      if (state.sid !== sid0) return; // 竞态护栏
       state.questions = (d && d.items) || []; renderInteractionCards();
     }).catch(function () {});
   }, 300);
@@ -284,7 +287,7 @@
   var FLEET_HARNESS = {
     kimi: { label: 'Kimi', color: '#5b7cfa' },
     codex: { label: 'Codex', color: '#3fb27f' },
-    claude: { label: 'Claude Code·壳', color: '#e0a458' },
+    claude: { label: 'Claude Code', color: '#e0a458' },
     zcode: { label: 'Z Code', color: '#a06ee8' },
     workbuddy: { label: 'WorkBuddy', color: '#4fc3d9' },
   };
@@ -325,12 +328,65 @@
           title: displayTitle(s),
           cwd: (s.metadata && s.metadata.cwd) || null,
           updated_at: s.updated_at, archived: s.archived, busy: !!(s.busy || s.main_turn_active), _kimi: s,
+          model: (state.fleetModelCache || {})[s.id] || null,
         });
       });
       items.sort(function (a, b) { return String(b.updated_at).localeCompare(String(a.updated_at)); });
       state.fleetItems = items;
 
-      // 顶部生命体征卡(每 harness:计数 + 最新活动 + 运行态)
+      // 模型配色(owner 钦定:模型为主维度)
+      var MODEL_COLORS = { 'k3': '#7b5bf5', 'kimi-for-coding': '#4c8dff', 'MiniMax-M3': '#ff8a3c', 'glm-5.2': '#2fbf71', 'GLM-5.2': '#2fbf71', 'gpt-5.6-sol': '#0fb5ba', 'doubao-seed-2.0-code': '#f26d9d', 'deepseek-v4-pro': '#8f6fd8' };
+      function modelColor(m) {
+        if (!m) return '#9a9aa3';
+        if (MODEL_COLORS[m]) return MODEL_COLORS[m];
+        var h = 0; for (var i = 0; i < m.length; i++) h = (h * 31 + m.charCodeAt(i)) % 360;
+        return 'hsl(' + h + ',55%,55%)';
+      }
+      function modelOf(s) {
+        var m = s.model;
+        if (!m) return s.harness === 'kimi' ? null : '未知';
+        // 归一:去供应商前缀(kimi-code/k3→k3)、统一大小写、常见别名收敛
+        m = String(m).replace(/^[a-z-]+:/, '').replace(/^kimi-code\//, '');
+        var low = m.toLowerCase();
+        if (low === 'glm-5.2') return 'glm-5.2';
+        if (low === 'k3' || low === 'kimi-k3') return 'k3';
+        if (low.startsWith('minimax-m3')) return 'MiniMax-M3';
+        if (low.startsWith('doubao')) return 'doubao-seed-2.0-code';
+        return m;
+      }
+
+      // 分组方式:按模型(默认)/按工具
+      var groupMode = localStorage.getItem('kr-fleet-group') || 'model';
+      state.fleetGroupMode = groupMode;
+
+      // 顶部:账号全景卡(三维全景:模型×壳×账号·额度)
+      var html = '<div id="acct-strip" class="acct-strip"><div class="skel-item" style="height:52px"></div></div>';
+      api('/fleet/accounts').then(function (d) {
+        var box = document.getElementById('acct-strip');
+        if (!box) return;
+        var items2 = (d && d.items) || [];
+        box.innerHTML = items2.map(function (a) {
+          var pct = a.quota && typeof a.quota.percent === 'number' ? a.quota.percent : null;
+          var qcolor = pct == null ? '#9a9aa3' : pct > 50 ? '#2fbf71' : pct > 20 ? '#e0a458' : '#e05252';
+          return '<div class="acct-card">' +
+            '<div class="acct-name">' + escHtml(a.name) + '</div>' +
+            '<div class="acct-sub">' + escHtml(a.account || '') + '</div>' +
+            '<div class="acct-sub acct-channel">' + escHtml(a.channel || '') + '</div>' +
+            '<div class="acct-quota">' +
+            (pct != null
+              ? '<span class="acct-bar"><i style="width:' + pct + '%;background:' + qcolor + '"></i></span><span style="color:' + qcolor + '">' + pct + '%</span>'
+              : '<span style="color:var(--text2)">' + escHtml(a.quota_note || '额度未读') + '</span>') +
+            '</div></div>';
+        }).join('');
+      }).catch(function () { var b = document.getElementById('acct-strip'); if (b) b.innerHTML = ''; });
+
+      // 分组切换条
+      html += '<div class="fleet-toggle">' +
+        '<button class="tg' + (groupMode === 'model' ? ' on' : '') + '" data-g="model">按模型</button>' +
+        '<button class="tg' + (groupMode === 'harness' ? ' on' : '') + '" data-g="harness">按工具</button>' +
+        '</div>';
+
+      // 生命体征卡(每 harness:计数 + 最新活动 + 运行态)
       var stats = {};
       items.forEach(function (s) {
         var st = stats[s.harness] || (stats[s.harness] = { count: 0, latest: '', busy: 0 });
@@ -338,7 +394,7 @@
         if (String(s.updated_at) > st.latest) st.latest = String(s.updated_at);
         if (s.busy) st.busy++;
       });
-      var html = '<div class="fleet-vitals">' + Object.keys(FLEET_HARNESS).map(function (h) {
+      html += '<div class="fleet-vitals">' + Object.keys(FLEET_HARNESS).map(function (h) {
         var st = stats[h];
         if (!st) return '';
         var m = FLEET_HARNESS[h];
@@ -348,38 +404,78 @@
           '<div class="vital-sub">' +
           (st.busy ? '<span class="st st-run"><span class="dot pulse"></span>' + st.busy + ' 运行中 · </span>' : '') +
           fmtTime(st.latest) + '</div></div>';
-      }).join('') + '</div>' +
-        '<div class="fleet-note">每条 = 壳(工具) + 模型标签(真实驱动模型);「Claude Code·壳」均由国产模型驱动,与 Anthropic 账号无关</div>';
+      }).join('') + '</div>';
 
-      if (!items.length) { wrap.innerHTML = html + '<div class="empty">各源都没有会话</div>'; return; }
-      items.forEach(function (s) {
+      function rowHtml(s) {
         var m = FLEET_HARNESS[s.harness] || { label: s.harness, color: '#9a9aa3' };
-        // 非 kimi 源没有 busy 字段:近 5 分钟有写入视为「活跃」(owner 反馈「蜂群在跑但全显示空闲」)
         var isActive = !s.busy && s.harness !== 'kimi' && s.updated_at &&
           (Date.now() - new Date(s.updated_at).getTime()) < 5 * 60 * 1000;
         var busy = s.busy ? '<span class="st st-run"><span class="dot pulse"></span>运行中</span>'
           : isActive ? '<span class="st st-guard"><span class="dot pulse"></span>活跃</span>' : '';
         var arch = s.archived ? '<span class="badge archived">归档</span>' : '';
         var cwdShort = s.cwd ? String(s.cwd).replace(/^\/Users\/essence/, '~') : '';
-        html +=
-          '<button class="sess-item fleet-item" data-h="' + s.harness + '" data-id="' + escHtml(s.id) + '">' +
+        var mo = modelOf(s);
+        return '<button class="sess-item fleet-item" data-h="' + s.harness + '" data-id="' + escHtml(s.id) + '">' +
           '<div class="sess-main"><div class="sess-title">' +
-          '<span class="fleet-h" style="background:' + m.color + '">' + m.label + '</span>' +
+          (mo ? '<span class="fleet-m" style="background:' + modelColor(mo) + '">' + escHtml(mo) + '</span>' : '') +
           escHtml(s.title || '(无标题)') + '</div>' +
           '<div class="sess-meta">' + busy + arch +
-          (s.model ? '<span class="sess-tag">' + escHtml(s.model) + '</span>' : '') +
+          '<span class="fleet-h2" style="color:' + m.color + '">' + m.label + '</span>' +
           (cwdShort ? '<span>' + escHtml(cwdShort) + '</span>' : '') +
           '<span>' + fmtTime(s.updated_at) + '</span></div></div>' +
           '<span style="color:var(--text2)">›</span></button>';
-      });
+      }
+
+      if (!items.length) { wrap.innerHTML = html + '<div class="empty">各源都没有会话</div>'; return; }
+      if (groupMode === 'model') {
+        // 按模型分组:模型标题 + 组内会话
+        var groups = {};
+        items.forEach(function (s) {
+          var g = modelOf(s) || '未标模型';
+          (groups[g] = groups[g] || []).push(s);
+        });
+        var gnames = Object.keys(groups).sort(function (a, b) { return groups[b].length - groups[a].length; });
+        gnames.forEach(function (g) {
+          html += '<div class="fleet-ghead"><span class="fleet-m" style="background:' + modelColor(g === '未标模型' ? null : g) + '">' + escHtml(g) + '</span><span class="fleet-gcount">' + groups[g].length + '</span></div>';
+          groups[g].forEach(function (s) { html += rowHtml(s); });
+        });
+      } else {
+        items.forEach(function (s) { html += rowHtml(s); });
+      }
       wrap.innerHTML = html;
-      // kimi 会话可点进详情;其他源 v1 只读(点击提示)
+      wrap.querySelectorAll('.fleet-toggle .tg').forEach(function (b) {
+        b.onclick = function () {
+          localStorage.setItem('kr-fleet-group', b.dataset.g);
+          loadFleet({ quiet: true });
+        };
+      });
       wrap.querySelectorAll('.fleet-item').forEach(function (b) {
         b.onclick = function () {
           if (b.dataset.h === 'kimi') location.hash = '#/s/' + encodeURIComponent(b.dataset.id);
           else location.hash = '#/fs/' + encodeURIComponent(b.dataset.h) + '/' + encodeURIComponent(b.dataset.id);
         };
       });
+      // kimi 会话模型懒补(status.model,并发 4,只补前 15 个最近的)
+      state.fleetModelCache = state.fleetModelCache || {};
+      var needModel = items.filter(function (s) { return s.harness === 'kimi' && !s.model; }).slice(0, 15);
+      var mi = 0;
+      function nextModel() {
+        if (mi >= needModel.length) return;
+        var s = needModel[mi++];
+        api('/api/v1/sessions/' + s.id + '/status').then(function (d) {
+          if (d && d.model) { s.model = d.model; state.fleetModelCache[s.id] = d.model; loadFleetSoft(); }
+        }).catch(function () {}).finally(nextModel);
+      }
+      var loadFleetSoft = debounce(function () {
+        // 轻量重渲染(不重新拉数据)
+        var saved = state.fleetItems;
+        if (!saved) return;
+        var evtQuiet = { quiet: true };
+        wrap.innerHTML = '';
+        var p = Promise.resolve();
+        p.then(function () { loadFleet(evtQuiet); });
+      }, 1200);
+      nextModel(); nextModel(); nextModel(); nextModel();
     }).catch(function (e) {
       if (!opts.quiet) wrap.innerHTML = '<div class="empty">加载失败:' + escHtml(e.message) + '</div>';
     });
@@ -395,16 +491,16 @@
       '<h1><span class="fleet-h" style="background:' + m.color + '">' + m.label + '</span> ' + escHtml(item.title || '会话详情') + '</h1>' +
       '<button class="icon-btn" id="btn-refresh" title="刷新">⟳</button></div>' +
       '<div class="view"><div class="wrap" id="fd-wrap"><div class="skel-item"></div><div class="skel-item"></div></div></div>' +
-      (harness === 'claude' || harness === 'codex'
+      (harness === 'claude' || harness === 'codex' || harness === 'zcode'
         ? '<div class="composer"><div class="composer-inner"><div class="input-row">' +
           '<textarea id="fd-input" rows="1" placeholder="接管这个 ' + m.label + ' 会话,直接对它说话…"></textarea>' +
           '<button class="round-btn send" id="fd-send" title="发送">↑</button></div></div></div>'
-        : '<div class="reconn-bar">该源 v1 只读;接管目前开放 Claude / Codex</div>');
+        : '<div class="reconn-bar">该源 v1 只读;接管目前开放 Codex / Z Code</div>');
     document.getElementById('btn-back').onclick = function () { location.hash = '#/fleet'; };
     document.getElementById('btn-refresh').onclick = loadFleetDetail;
     loadFleetDetail();
     state.listTimer = setInterval(function () { if (!document.hidden) loadFleetDetail({ quiet: true }); }, 15000);
-    if (harness === 'claude' || harness === 'codex') {
+    if (harness === 'claude' || harness === 'codex' || harness === 'zcode') {
       var input = document.getElementById('fd-input');
       input.addEventListener('input', function () {
         input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 132) + 'px';
@@ -448,8 +544,9 @@
 
   function fdTakeover(text) {
     var wrap = document.getElementById('fd-wrap');
+    var label = (FLEET_HARNESS[state.fd.harness] || {}).label || '对方';
     wrap.innerHTML += '<div class="msg user"><div class="bubble">' + escHtml(text) + '</div></div>' +
-      '<div class="msg assistant" id="fd-pending"><div class="bubble"><span class="spin"></span> Claude 思考中…</div></div>';
+      '<div class="msg assistant" id="fd-pending"><div class="bubble"><span class="spin"></span> ' + escHtml(label) + ' 思考中…</div></div>';
     var v = document.querySelector('.view'); if (v) v.scrollTop = v.scrollHeight;
     api('/fleet/takeover', {
       method: 'POST',
@@ -518,6 +615,29 @@
     bar.innerHTML = ws.ok ? '' : '<div class="reconn-bar">连接断开,重连中…</div>';
   }
 
+  // 版本自检(2026-07-21:PWA 常驻内存,老代码永远活着;此后版本可自更新)
+  // 加载时记下本 app.js 的 ?v=,定期与线上 index.html 比对,不同则提示一键刷新
+  var __ASSET_V = (function () {
+    var m = (document.querySelector('script[src*="app.js"]') || {}).src || '';
+    var mm = m.match(/[?&]v=([^&]+)/);
+    return mm ? mm[1] : '';
+  })();
+  function checkAssetVersion() {
+    fetch(location.pathname, { cache: 'no-store', credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
+      var mm = html.match(/app\.js\?v=([^"&]+)/);
+      if (!mm || !__ASSET_V || mm[1] === __ASSET_V) return;
+      if (document.getElementById('newver-bar')) return;
+      var b = document.createElement('div');
+      b.id = 'newver-bar';
+      b.className = 'newver-bar';
+      b.textContent = '✨ 新版本已就绪,点此刷新体验';
+      b.onclick = function () { location.reload(true); };
+      (document.getElementById('connbar') || document.body).appendChild(b);
+    }).catch(function () {});
+  }
+  setTimeout(checkAssetVersion, 4000);
+  setInterval(checkAssetVersion, 5 * 60 * 1000);
+
   function loadSessions(opts) {
     opts = opts || {};
     var wrap = document.getElementById('sess-wrap');
@@ -585,10 +705,14 @@
   var guardLoading = false;
   function enrichGuardStates() {
     if (guardLoading || document.hidden) return;
+    // 节流+限量:每 15s 列表刷新时,全量打几十个 tasks 请求是手机端卡顿主因(2026-07-21 实测)
+    var now = Date.now();
+    if (state.guardLastRun && now - state.guardLastRun < 60 * 1000) return;
+    state.guardLastRun = now;
     guardLoading = true;
     var candidates = state.sessions.filter(function (s) {
       return !(s.busy || s.main_turn_active);
-    });
+    }).slice(0, 12);
     var i = 0;
     function next() {
       if (i >= candidates.length) { guardLoading = false; state.tasksCache.ts = Date.now(); return; }
@@ -710,10 +834,10 @@
     }).catch(function () {});
   }
 
-  // 来源 tag:zaios 调度 / 临时 / Work 项目——解决「分不清谁建的」
+  // 来源 tag:自动调度 / 临时 / Work 项目——解决「分不清谁建的」
   function sourceTag(s) {
     var cwd = (s.metadata && s.metadata.cwd) || '';
-    if (/\/Work\/zaios/.test(cwd)) return 'zaios 调度';
+    if (/\/Work\/agent/.test(cwd)) return '自动调度';
     if (cwd === '/tmp' || cwd === '/private/tmp') return '临时';
     var m = cwd.match(/\/Work\/([^/]+)/);
     if (m) return 'Work/' + m[1];
@@ -859,6 +983,8 @@
       '<button id="m-mine">只看我的输入</button>' +
       '<button id="m-perm">权限模式</button>' +
       '<button id="m-model">切换模型</button>' +
+      '<button id="m-compact">压缩上下文</button>' +
+      '<button id="m-fork">分叉接力</button>' +
       '<button id="m-archive">归档会话</button>' +
       '</div></div></div>' +
       '<div id="infobar"></div>' +
@@ -897,6 +1023,24 @@
       pop.style.display = 'none';
       api('/api/v1/sessions/' + sid + ':archive', { method: 'POST' }).then(function () {
         toast('已归档'); location.hash = '#/';
+      }).catch(function (e) { toast(e.message, true); });
+    };
+    // 压缩上下文(/compact,官方 :compact 路由;长会话省钱续命)
+    document.getElementById('m-compact').onclick = function () {
+      pop.style.display = 'none';
+      toast('压缩中,稍候…');
+      api('/api/v1/sessions/' + sid + ':compact', { method: 'POST', body: {} }).then(function () {
+        toast('已开始压缩,上下文用量稍后回落');
+        setTimeout(pollStatusOnce, 4000);
+      }).catch(function (e) { toast(e.message, true); });
+    };
+    // 分叉接力(/fork,官方 :fork 路由;复制独立副本开新方向)
+    document.getElementById('m-fork').onclick = function () {
+      pop.style.display = 'none';
+      api('/api/v1/sessions/' + sid + ':fork', { method: 'POST', body: {} }).then(function (d) {
+        var nid = d && (d.id || (d.data && d.data.id));
+        if (nid) { toast('已分叉,进入新会话'); location.hash = '#/s/' + encodeURIComponent(nid); }
+        else toast('分叉完成');
       }).catch(function (e) { toast(e.message, true); });
     };
     document.getElementById('m-pin').onclick = function () {
@@ -967,6 +1111,7 @@
     var sid = state.sid;
     if (!sid || document.hidden || !state.busy) return;
     api('/api/v1/sessions/' + sid + '/snapshot').then(function (snap) {
+      if (state.sid !== sid) return; // 竞态护栏
       var f = (snap && snap.in_flight_turn) || null;
       var atext = (f && f.assistant_text) || '';
       var think = (f && f.thinking_text) || '';
@@ -1080,6 +1225,7 @@
     var sid = state.sid;
     if (!sid || document.hidden) return;
     api('/api/v1/sessions/' + sid + '/status').then(function (d) {
+      if (state.sid !== sid) return; // 竞态护栏
       state.statusData = d || null;
       renderInfobar();
       var busy = !!(d && (d.busy || d.main_turn_active));
@@ -1091,6 +1237,7 @@
       }
       if (busy) {
         api('/api/v1/sessions/' + sid + '/snapshot').then(function (snap) {
+          if (state.sid !== sid) return; // 竞态护栏
           state.inFlight = (snap && snap.in_flight_turn) || null;
           renderRunbar();
         }).catch(function () {});
@@ -1102,7 +1249,7 @@
     refreshGuardTasks(sid);   // 每次状态轮询顺带刷守护任务(chip 守护态的数据源)
     // 权威队列:active + queued(每条含 prompt_id/status/content)
     api('/api/v1/sessions/' + sid + '/prompts').then(function (d) {
-      if (!d) return;
+      if (!d || state.sid !== sid) return; // 竞态护栏
       var queued = d.queued || [];
       queued.forEach(function (q) {
         if (!q.created_at && !state.queuedTimeMap[q.prompt_id]) {
@@ -1142,12 +1289,14 @@
   // 排队条:权威队列展示——▶执行中(active)+ ⏳排队N条(逐条操作)+ ✓刚完成(淡出)
   // 解决「指令消失」:queued→active→done 全生命周期在条内可见,不跳变
   var queueExpanded = false;
+  var qbarTextOpen = {};   // prompt_id → true:排队/执行条文本展开全文(2026-07-21 复制优化轮)
   function renderQueueBar() {
     var bar = document.getElementById('queuebar');
     if (!bar) return;
     var active = state.promptsInfo.active;
     var queued = state.promptsInfo.queued;
     var done = state.lastCompletedPrompt;
+    state.qbarTextMap = {};
 
     if (!active && !queued.length) {
       if (done && (Date.now() - done.at) < 8000) {
@@ -1161,14 +1310,18 @@
     bar.style.display = 'block';
 
     var html = '';
-    // ▶ 当前执行
+    // ▶ 当前执行(文本可点开展开全文 + 一键复制)
     if (active) {
       var atext = promptText(active);
       var ats = active.created_at || state.queuedTimeMap[active.prompt_id];
+      state.qbarTextMap[active.prompt_id] = atext;
+      var aOpen = !!qbarTextOpen[active.prompt_id];
       html += '<div class="qbar-item active">' +
         '<span class="qbar-live">▶</span>' +
         '<span class="qbar-time">' + fmtClock(ats) + '</span>' +
-        '<span class="qbar-text" title="' + escHtml(atext) + '">正在执行:' + escHtml(atext.slice(0, 50)) + '</span>' +
+        '<span class="qbar-text' + (aOpen ? ' open' : '') + '" data-pid="' + escHtml(active.prompt_id) + '" title="点我展开/收起全文">正在执行:' +
+          escHtml(aOpen ? atext : atext.slice(0, 50)) + (!aOpen && atext.length > 50 ? '…' : '') + '</span>' +
+        '<button class="qbar-act copy-one" data-pid="' + escHtml(active.prompt_id) + '" title="复制">⧉</button>' +
         '</div>';
     }
     // ⏳ 队列头
@@ -1179,10 +1332,14 @@
         queued.forEach(function (q, i) {
           var text = promptText(q);
           var ts = q.created_at || state.queuedTimeMap[q.prompt_id];
+          state.qbarTextMap[q.prompt_id] = text;
+          var qOpen = !!qbarTextOpen[q.prompt_id];
           html += '<div class="qbar-item" data-pid="' + escHtml(q.prompt_id) + '">' +
             '<span class="qbar-idx">#' + (i + 1) + '</span>' +
             '<span class="qbar-time">' + fmtClock(ts) + '</span>' +
-            '<span class="qbar-text" title="' + escHtml(text) + '">' + escHtml(text.slice(0, 60)) + (text.length > 60 ? '…' : '') + '</span>' +
+            '<span class="qbar-text' + (qOpen ? ' open' : '') + '" data-pid="' + escHtml(q.prompt_id) + '" title="点我展开/收起全文">' +
+              escHtml(qOpen ? text : text.slice(0, 60)) + (!qOpen && text.length > 60 ? '…' : '') + '</span>' +
+            '<button class="qbar-act copy-one" data-pid="' + escHtml(q.prompt_id) + '" title="复制">⧉</button>' +
             (active ? '<button class="qbar-act steer-one" title="插队到当前执行">⚡</button>' : '') +
             '<button class="qbar-act cancel-one" title="取消排队">✕</button>' +
             '</div>';
@@ -1192,6 +1349,20 @@
     bar.innerHTML = html;
     var tog = document.getElementById('qbar-toggle');
     if (tog) tog.onclick = function () { queueExpanded = !queueExpanded; renderQueueBar(); };
+    // 排队/执行条文本:点一下展开全文,再点收起(2026-07-21 复制优化轮)
+    bar.querySelectorAll('.qbar-text').forEach(function (t) {
+      t.onclick = function () {
+        var pid = t.dataset.pid;
+        qbarTextOpen[pid] = !qbarTextOpen[pid];
+        renderQueueBar();
+      };
+    });
+    bar.querySelectorAll('.copy-one').forEach(function (btn) {
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        copyText(state.qbarTextMap[btn.dataset.pid] || '');
+      };
+    });
     bar.querySelectorAll('.steer-one').forEach(function (btn) {
       btn.onclick = function () {
         var pid = btn.closest('.qbar-item').dataset.pid;
@@ -1278,8 +1449,21 @@
       steerBtn.style.display = 'none';
       stopBtn.style.display = 'none';
       input.disabled = true; send.disabled = true;
-      hint.textContent = state.approvals.length ? '⏸ 等待审批:请先处理上方的审批请求' : '⏸ 等待回答:请先处理上方的问题';
+      // 锁定时给个「能看懂、能点」的横幅:告诉用户点哪,点了就滚到答题卡并高亮(owner:输入框按不起像坏了)
+      var n = state.approvals.length + state.questions.length;
+      hint.innerHTML = state.approvals.length
+        ? '⏸ <b>有 ' + n + ' 个审批待你处理</b> · 点此去处理 ↓'
+        : '⏸ <b>有 ' + n + ' 个问题等你回答</b> · 点此去作答 ↓';
+      hint.className = 'composer-hint locked-banner';
       hint.style.display = 'block';
+      hint.onclick = function () {
+        var card = document.querySelector('#interact .action-card');
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          card.classList.add('flash');
+          setTimeout(function () { card.classList.remove('flash'); }, 1600);
+        }
+      };
     } else {
       input.disabled = false;
       hint.style.display = 'none';
@@ -1443,6 +1627,7 @@
       }, 3500);
     }
     api('/api/v1/sessions/' + sid + '/messages?page_size=30').then(function (d) {
+      if (state.sid !== sid) return; // 竞态护栏:回包到达时已切到别的会话,丢弃(2026-07-21 串台 bug)
       var items = (d && d.items) || [];
       items.sort(cmpMsg);
       if (state.sid === sid && state.msgs.length && items.length) {
@@ -1589,19 +1774,30 @@
     state.earlierLoading = true;
     var slot = document.getElementById('earlier-slot');
     if (slot) slot.innerHTML = '<div class="empty" style="padding:6px">加载更早消息中…</div>';
-    // 滚动锚定:记录插入前 scrollHeight,渲染后补偿位移,视口停在原消息上不跳
+    // 滚动锚定(2026-07-21 根修):不用总 scrollHeight 差补偿——首条消息下方任何高度变化(重渲染/状态条/流式)
+    // 都会把视口带偏;改为锚到「加载前第一条消息」节点的自身位移,视口精确停在原消息上。失败回退总高差。
     var msgsEl = document.getElementById('msgs');
-    var prevH = msgsEl ? msgsEl.scrollHeight : 0;
+    var mid0 = CSS.escape(first.id);
+    var anchorNode = msgsEl ? msgsEl.querySelector('#msg-list .msg[data-mid="' + mid0 + '"]') : null;
     var prevTop = msgsEl ? msgsEl.scrollTop : 0;
-    api('/api/v1/sessions/' + state.sid + '/messages?page_size=100&before_id=' + encodeURIComponent(first.id)).then(function (d) {
+    var prevOffset = anchorNode ? anchorNode.offsetTop : 0;
+    var prevH = msgsEl ? msgsEl.scrollHeight : 0;
+    var sid0 = state.sid;
+    api('/api/v1/sessions/' + sid0 + '/messages?page_size=100&before_id=' + encodeURIComponent(first.id)).then(function (d) {
+      if (state.sid !== sid0) return; // 竞态护栏
       var items = (d && d.items) || [];
       items.sort(cmpMsg);
       state.msgs = mergeMessages(items, state.msgs);
       state.hasMore = !!(d && d.has_more);
       renderMessages(true);
       if (msgsEl) {
-        var delta = msgsEl.scrollHeight - prevH;
-        if (delta > 0) msgsEl.scrollTop = prevTop + delta;
+        var node = msgsEl.querySelector('#msg-list .msg[data-mid="' + mid0 + '"]');
+        if (node) {
+          msgsEl.scrollTop = prevTop + (node.offsetTop - prevOffset);
+        } else {
+          var delta = msgsEl.scrollHeight - prevH;
+          if (delta > 0) msgsEl.scrollTop = prevTop + delta;
+        }
       }
     }).catch(function (e) { toast(e.message, true); renderMessages(true); })
       .finally(function () { state.earlierLoading = false; });
@@ -1661,6 +1857,7 @@
       }
       if (!myText.trim() && !files) return '<div class="msg user">' + injHtml + '</div>';
       return '<div class="msg user"><div class="bubble">' +
+        '<button class="bubble-copy" title="复制本条">⧉</button>' +
         (files ? '<div class="files">' + files + '</div>' : '') +
         escHtml(myText) +
         '<div class="msg-time">' + fmtClock(m.created_at) + '</div></div>' + injHtml + '</div>';
@@ -1683,18 +1880,19 @@
         }
         body += '<details class="tool-card"><summary>🔧 <span class="tool-name">' + escHtml(b.tool_name || b.name || 'tool') + '</span>' +
           (summary ? '<span class="tool-sum">' + escHtml(summary) + '</span>' : '') +
-          '</summary><div class="body">' + escHtml(input) + '</div></details>';
+          '</summary><div class="body"><button class="tool-copy" title="复制内容">⧉</button>' + escHtml(input) + '</div></details>';
       } else if (b.type === 'tool_result') {
         var out = b.output;
         if (typeof out !== 'string') { try { out = JSON.stringify(out, null, 2); } catch (e) { out = String(out); } }
         body += '<details class="tool-card"><summary>📄 工具结果' + (b.is_error ? '(错误)' : '') + '</summary>' +
-          '<div class="body">' + escHtml((out || '').slice(0, 4000)) + '</div></details>';
+          '<div class="body"><button class="tool-copy" title="复制内容">⧉</button>' + escHtml((out || '').slice(0, 4000)) + '</div></details>';
       } else if (b.type === 'image' || b.type === 'file') {
         body += '<div class="files"><span class="file-pill">📎 ' + escHtml(b.name || b.media_type || '附件') + '</span></div>';
       }
     });
     if (!body.trim()) return '';
-    return '<div class="msg assistant"><div class="bubble">' + body +
+    return '<div class="msg assistant"><div class="bubble">' +
+      '<button class="bubble-copy" title="复制本条">⧉</button>' + body +
       '<div class="msg-time">' + fmtClock(m.created_at) + '</div></div></div>';
   }
 
@@ -2117,6 +2315,53 @@
       pollStatusOnce();
     });
   }
+
+  // 一键复制(2026-07-21 复制优化轮):气泡/工具卡/排队条共用
+  function copyText(t) {
+    if (!t) { toast('没有可复制的内容', true); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { toast('已复制'); }).catch(function () { legacyCopy(t); });
+    } else legacyCopy(t);
+  }
+  function legacyCopy(t) {
+    var ta = document.createElement('textarea');
+    ta.value = t; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast('已复制'); }
+    catch (e) { toast('复制失败,请长按选择文本', true); }
+    document.body.removeChild(ta);
+  }
+  function rawTextOf(m) {
+    if (!m) return '';
+    var c = m.content;
+    if (typeof c === 'string') return c;
+    if (Array.isArray(c)) return c.filter(function (b) { return b && b.type === 'text'; }).map(function (b) { return b.text || ''; }).join('\n');
+    return (c && c.text) || '';
+  }
+  function userVisibleText(m) { // 与气泡同源:剥掉系统注入块,复制到的是"我本人真写的"
+    return String(rawTextOf(m))
+      .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ')
+      .replace(/<system>[\s\S]*?<\/system>/g, ' ')
+      .replace(/\s+$/g, '').replace(/^\s+/g, '');
+  }
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('.bubble-copy, .tool-copy');
+    if (!btn) return;
+    e.stopPropagation();
+    if (btn.classList.contains('tool-copy')) {
+      var card = btn.closest('.tool-card');
+      var bodyEl = card && card.querySelector('.body');
+      if (bodyEl) copyText(bodyEl.textContent.replace(/^⧉/, ''));
+      return;
+    }
+    var msgEl = btn.closest('.msg');
+    var mid = msgEl && msgEl.dataset.mid;
+    var m = (state.msgs || []).find(function (x) { return x && x.id === mid; });
+    var t = m
+      ? (msgEl.classList.contains('user') ? userVisibleText(m) : rawTextOf(m))
+      : (msgEl ? msgEl.innerText.replace(/⧉/g, '').trim() : '');
+    copyText(t);
+  });
 
   // 代码块复制按钮(事件委托)
   document.addEventListener('click', function (e) {

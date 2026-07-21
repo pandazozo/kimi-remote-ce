@@ -302,3 +302,11 @@
 - 生产:https://your.domain
 
 [0.1.0]: https://your.domain
+
+## [ce-sync 2026-07-21]
+
+### Added
+- 同步主线今日版本:Z Code 接管(zcodeTakeover,CLI 配置破解)、账号卡额度全景(accounts-probe.js:Codex/GLM/MiniMax 实测额度)、视口锚定根修、「展开+一键复制」优化轮、视觉走查 11 步套件
+- docs/CLEAN-CLAUDE-SERVER.md:干净服务器部署真 Claude Code 并接入机群 runbook
+### Security
+- 脱敏复扫清零:内部系统名/人名/域名/网段全部中性化(example.com 规约)

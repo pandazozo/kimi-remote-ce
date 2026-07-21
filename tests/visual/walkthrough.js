@@ -30,6 +30,7 @@ let context;
 let stepCount = 0;
 const consoleErrors = [];
 const pageErrors = [];
+const unauthorizedUrls = [];
 
 function ensure(condition, message) {
   if (!condition) throw new Error(message);
@@ -114,6 +115,8 @@ async function doLogoutIfPossible() {
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
     });
     page = await context.newPage();
+    // 复制优化轮验证需要真读剪贴板
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE }).catch(() => {});
 
     page.on('console', (msg) => {
       if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -121,6 +124,8 @@ async function doLogoutIfPossible() {
     page.on('pageerror', (err) => {
       pageErrors.push(err.message);
     });
+    // 401 采集:/api/v1/meta 是设计内的未登录探针(白名单),其余 401 必须显形
+    page.on('response', (r) => { if (r.status() === 401) unauthorizedUrls.push(r.url()); });
 
     // -------- 1 登录页 --------
     let attempted = [{ pw: PASSWORD, used: PASSWORD }];
@@ -187,8 +192,8 @@ async function doLogoutIfPossible() {
       await page.waitForFunction(() => document.querySelectorAll('#msg-list .msg').length > 0, null, { timeout: 45000 });
       const bubbles = await page.locator('#msg-list .msg .bubble').count();
       ensure(bubbles > 0, `#msg-list 没有任何 .msg .bubble(count=${bubbles})`);
-      const status = await page.locator('#chat-status .st').count();
-      ensure(status > 0, `#chat-status 缺 .st`);
+      // 状态 chip 由 renderStatusChip 在状态拉取后渲染,晚于消息首屏——显式等待,防竞态误判
+      await page.waitForSelector('#chat-status .st', { timeout: 15000 });
       const input = await page.locator('#input').count();
       ensure(input === 1, `#input 数量异常(count=${input})`);
       const allText = await page.locator('body').innerText();
@@ -404,10 +409,12 @@ async function doLogoutIfPossible() {
       // 列表行存在
       const rowCount = await page.locator('.fleet-item').count();
       ensure(rowCount > 0, `.fleet-item 列表为空`);
-      // 模型标签:任一 .sess-tag 文本匹配 k3/MiniMax-M3/glm-5.2(case-insensitive)
-      const tags = await page.locator('.fleet-item .sess-tag').allTextContents();
+      // 模型标签:.fleet-item 内 .fleet-m(2026-07-21 修正:旧断言找 .sess-tag=不存在的选择器);
+      // kimi 会话标签懒补(status 回填),先等至少一个 .fleet-m 落地再读
+      await page.waitForFunction(() => document.querySelectorAll('.fleet-item .fleet-m').length > 0, null, { timeout: 30000 });
+      const tags = await page.locator('.fleet-item .fleet-m').allTextContents();
       const hay = tags.join(' ').toLowerCase();
-      const hit = /(k3|minimax|glm[-_ ]?5\.?2)/.test(hay);
+      const hit = /(k3|minimax|glm[-_ ]?5\.?2|gpt|qwen|mimo)/.test(hay);
       ensure(hit, `未发现模型标签: ${JSON.stringify(tags)}`);
       const allText = await page.locator('body').innerText();
       ensure(!HAS_UNDEFINED_RE.test(allText), `机群页出现 undefined: ${allText.match(/.{0,30}undefined.{0,30}/)?.[0]}`);
@@ -415,18 +422,23 @@ async function doLogoutIfPossible() {
     });
 
     // -------- 9 他源详情 --------
-    await runStep(9, '机群页第一个 Claude Code·壳 会话详情', async () => {
-      // 找 harness 标签为 "Claude Code·壳" 的 .fleet-item
+    await runStep(9, '机群页 Codex 他源会话详情 + 无「壳」残留标签', async () => {
+      // 2026-07-21 claude 全线清除回归闸:「Claude Code·壳」标签绝不允许再出现
+      const shellCount = await page.evaluate(() =>
+        (document.body.innerText.match(/Claude Code·壳/g) || []).length
+      );
+      ensure(shellCount === 0, `机群页出现 ${shellCount} 处「Claude Code·壳」残留标签`);
+      // 找 harness 标签(.fleet-h2)为 "Codex" 的 .fleet-item(codex 接管已开放,可验接管输入区)
       const targetIdx = await page.evaluate(() => {
         const items = Array.from(document.querySelectorAll('.fleet-item'));
         for (let i = 0; i < items.length; i++) {
-          const lbl = items[i].querySelector('.fleet-h')?.textContent?.trim() || '';
-          if (lbl.includes('Claude Code·壳')) return i;
+          const lbl = items[i].querySelector('.fleet-h2')?.textContent?.trim() || '';
+          if (lbl.includes('Codex')) return i;
         }
         return -1;
       });
       if (targetIdx < 0) {
-        throw new Error('机群页未找到 Claude Code·壳 条目');
+        throw new Error('机群页未找到 Codex 条目');
       }
       await page.locator('.fleet-item').nth(targetIdx).click();
       await page.waitForFunction(() => /^#\/fs\//.test(location.hash), null, { timeout: 30000 });
@@ -502,12 +514,61 @@ async function doLogoutIfPossible() {
       await screenshot('10-send-reply.png');
     });
 
+    // -------- 11 复制/展开优化轮 --------
+    await runStep(11, '气泡/工具卡一键复制(剪贴板真读)', async () => {
+      // 自建独立样本会话(不依赖/不污染任何真实会话;事后由 session-janitor 回收)
+      const MARK = '复制样本' + Date.now().toString(36);
+      const created = await page.request.post(BASE + '/api/v1/sessions', {
+        data: { metadata: { cwd: '/tmp' }, title: '视觉走查·复制样本' },
+      });
+      ensure(created.ok(), '建样本会话失败: ' + created.status());
+      const sid = (await created.json()).data.id;
+      const p = await page.request.post(BASE + '/api/v1/sessions/' + sid + '/prompts', {
+        data: { content: [{ type: 'text', text: MARK + ':先用 Bash 执行 echo kr-copy,再只回复 done' }], permission_mode: 'auto' },
+      });
+      ensure(p.ok(), '样本会话发 prompt 失败: ' + p.status());
+      await page.goto(routeUrl('#/s/' + sid), { waitUntil: 'domcontentloaded' });
+      // 用户气泡(带复制钮)出现
+      await page.waitForFunction((mk) =>
+        Array.from(document.querySelectorAll('#msg-list .msg.user')).some((m) =>
+          (m.innerText || '').includes(mk) && m.querySelector('.bubble-copy')), MARK, { timeout: 45000 });
+      const uCopy = page.locator('#msg-list .msg.user', { hasText: MARK }).last().locator('.bubble-copy');
+      await uCopy.click();
+      await page.waitForTimeout(300);
+      const clipU = await page.evaluate(() => navigator.clipboard.readText());
+      ensure(clipU.includes(MARK), `用户气泡复制内容不含样本标记: "${clipU.slice(0, 40)}"`);
+      // assistant 回复气泡复制
+      await page.waitForSelector('#msg-list .msg.assistant .bubble-copy', { timeout: 120000 });
+      const aCopy = page.locator('#msg-list .msg.assistant .bubble-copy').last();
+      await aCopy.click();
+      await page.waitForTimeout(300);
+      const clipA = await page.evaluate(() => navigator.clipboard.readText());
+      ensure(clipA.trim().length > 0, 'assistant 气泡复制后剪贴板为空');
+      // 工具卡复制(该会话必有 Bash 工具调用)
+      const toolSummary = page.locator('#msg-list .tool-card > summary').first();
+      ensure(await toolSummary.count() > 0, '样本会话未出现工具卡');
+      await toolSummary.click();
+      const tCopy = page.locator('#msg-list .tool-card .tool-copy').first();
+      ensure(await tCopy.count() > 0, '工具卡缺 .tool-copy');
+      await tCopy.click();
+      await page.waitForTimeout(300);
+      const clipT = await page.evaluate(() => navigator.clipboard.readText());
+      ensure(clipT.trim().length > 0, '工具卡复制后剪贴板为空');
+      await screenshot('11-copy.png');
+    });
+
     console.log('SCREENSHOT_DIR=' + SHOT_DIR);
   } catch (err) {
     exitCode = 1;
     console.error('WALKTHROUGH_ERROR:', err && err.message ? err.message : err);
   } finally {
-    if (consoleErrors.length) console.log('CONSOLE_ERRORS=' + JSON.stringify(consoleErrors.slice(0, 8)));
+    const unexpected401 = unauthorizedUrls.filter((u) => !u.includes('/api/v1/meta'));
+    // meta 探针的 401 是登录态探测的正常信号;仅当无其他 401 时才豁免对应的资源加载报错
+    const filteredConsole = consoleErrors.filter(
+      (t) => !(unexpected401.length === 0 && /Failed to load resource: .*401/.test(t))
+    );
+    if (filteredConsole.length) console.log('CONSOLE_ERRORS=' + JSON.stringify(filteredConsole.slice(0, 8)));
+    if (unexpected401.length) console.log('UNEXPECTED_401=' + JSON.stringify(unexpected401.slice(0, 8)));
     if (pageErrors.length) console.log('PAGE_ERRORS=' + JSON.stringify(pageErrors.slice(0, 8)));
     try { if (context) await context.close(); } catch (_) {}
     try { if (browser) await browser.close(); } catch (_) {}

@@ -9,9 +9,9 @@ beforeEach(async () => {
 });
 
 test('创建邀请:token/过期时间/未使用状态', () => {
-  const inv = invites.createInvite('wangzuo', { note: '给小明' });
+  const inv = invites.createInvite('alice', { note: '给小明' });
   assert.ok(inv.token.length > 20);
-  assert.equal(inv.created_by, 'wangzuo');
+  assert.equal(inv.created_by, 'alice');
   assert.equal(inv.used_by, null);
   assert.equal(invites.isUsable(inv), true);
   assert.ok(new Date(inv.expires_at).getTime() > Date.now());

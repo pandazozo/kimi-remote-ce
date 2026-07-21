@@ -20,7 +20,7 @@
 
 ### v0.3 团队试点(2~5 人,目标:真跑通一个非 owner 成员)
 
-- **多账号**:gateway 用户表(`deploy/.env` 里 `USERS_JSON`,如 `{"wangzuo":{...hash,role:admin},"member1":{...hash,role:member}}`),登录签 per-user JWT(sub=用户名),全部登录/失败/代理操作记审计日志(文件,按天)
+- **多账号**:gateway 用户表(`deploy/.env` 里 `USERS_JSON`,如 `{"admin1":{...hash,role:admin},"member1":{...hash,role:member}}`),登录签 per-user JWT(sub=用户名),全部登录/失败/代理操作记审计日志(文件,按天)
 - **机器命名空间**:tunnel agent 启动时带 `MACHINE_ID`+机器 token 注册;gateway 维护 machine→tunnel 端口映射;REST/WS 路径加 `/m/:machine/` 前缀;H5 会话按机器分组展示
 - **邀请配对**:admin 在 Mac 上跑一条命令生成一次性邀请链接(24h 有效),成员手机打开 → 设置自己的密码 → 自动引导装 agent(一行 curl 脚本)→ 上线。邀请链路走 HTTPS 一次性 token,不过飞书明文
 - **兼容**:单 owner 模式继续可用(零配置迁移)
@@ -29,13 +29,13 @@
 ### v0.4 硬化(团队扩大前)
 
 - per-user 登录限流与操作配额;成员停用/删除命令
-- 审计日志查看页(admin);隧道断连 → 飞书告警(复用 zaios 通道)
+- 审计日志查看页(admin);隧道断连 → 飞书告警(复用现有告警通道)
 - 安全自查:白名单再审视、依赖审计(npm audit)、JWT secret 轮换流程演练
 - H5 英文/中文切换(开源预备)
 
 ### v1.0 开源(标准收尾)
 
-- **脱敏**:内部代号全清(芃芃/zaios/域名默认值化 example.com);git 历史审查(必要时重建仓库)
+- **脱敏**:内部代号全清(域名默认值化 example.com);git 历史审查(必要时重建仓库)
 - **LICENSE:Apache-2.0**(专利授权+商用友好,适合"标准"定位;备选 MIT 更短更宽)
 - **品牌**:`kimi-remote` 与 Kimi 官方命名有混淆风险,开源前改名(候选:`agent-remote` / `remoted` / 新造词;届时定,不阻塞)
 - README(英文)+ 自部署指南 + 架构图;CI(单测+smoke 门禁);CONTRIBUTING + CODE_OF_CONDUCT
