@@ -12,7 +12,7 @@ set -u
 ADAPTER="${ADAPTER_URL:-http://127.0.0.1:58629}"
 ADAPTER_ENV="${ADAPTER_ENV:-$HOME/.kimi-remote-adapter.env}"
 MODE="${JANITOR_MODE:-dry}"
-ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-ou_c3efb4bab62fd9b84d41d90b024f8394}"
+ALERT_USER_OPEN_ID="${ALERT_USER_OPEN_ID:-}"
 LARK_CLI="${LARK_CLI:-$(command -v lark-cli || command -v lark-cli)}"
 IDLE_DAYS="${IDLE_DAYS:-14}"
 
@@ -68,7 +68,7 @@ echo "$msg" | head -30
 STATE_FILE="${STATE_FILE:-$HOME/.kimi-session-janitor.state}"
 last=0; [ -f "$STATE_FILE" ] && source "$STATE_FILE"
 if [ $((now - last)) -ge 86400 ]; then
-  LARKSUITE_CLI_NO_UPDATE_NOTIFIER=1 "$LARK_CLI" im +messages-send --as bot \
+  [ -z "$ALERT_USER_OPEN_ID" ] || LARKSUITE_CLI_NO_UPDATE_NOTIFIER=1 "$LARK_CLI" im +messages-send --as bot \
     --user-id "$ALERT_USER_OPEN_ID" --text "$msg" \
     --idempotency-key "$(uuidgen | tr '[:upper:]' '[:lower:]')" >/dev/null 2>&1
   printf 'last=%s\n' "$now" > "$STATE_FILE"

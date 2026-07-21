@@ -31,7 +31,7 @@ else
   fi
   # 3. 兜底路径:owner 提示的 npx hash 缓存
   if [ -z "$RESOLVED_NODE_PATH" ]; then
-    for d in /Users/essence/.npm/_npx/*/node_modules; do
+    for d in "$HOME"/.npm/_npx/*/node_modules; do
       if probe_node "$d"; then
         RESOLVED_NODE_PATH="$d"
         break

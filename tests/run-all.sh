@@ -31,11 +31,11 @@ fi
 if [ "$MODE" = "--full" ]; then
   echo ""
   echo "==================== ③ 生产冒烟 ===================="
-  BASE="${BASE:-https://your.domain}" PASSWORD="${PASSWORD:?need PASSWORD}" tests/smoke.sh || FAIL=1
+  BASE="${BASE:-https://kimi.pengpengco.com}" PASSWORD="${PASSWORD:?need PASSWORD}" tests/smoke.sh || FAIL=1
   echo ""
   echo "==================== ③.5 视觉走查 ===================="
   if [ -f tests/visual/run-visual.sh ]; then
-    VISUAL_BASE="${VISUAL_BASE:-${BASE:-https://your.domain}}" PASSWORD="${PASSWORD:?need PASSWORD}" bash tests/visual/run-visual.sh || FAIL=1
+    VISUAL_BASE="${VISUAL_BASE:-${BASE:-https://kimi.pengpengco.com}}" PASSWORD="${PASSWORD:?need PASSWORD}" bash tests/visual/run-visual.sh || FAIL=1
   else
     echo "SKIP tests/visual/ 不存在"
   fi

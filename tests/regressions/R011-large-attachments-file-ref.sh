@@ -8,7 +8,7 @@
 # 断言: ①两张 ~450KB 图分别上传 /api/v1/files 得 file_id ②双 file_id 图片的 prompt 被接受(200)
 # 环境: BASE/PASSWORD
 set -uo pipefail
-BASE="${BASE:-https://kimi.pengpengco.com}"
+BASE="${BASE:?need BASE}"
 PASSWORD="${PASSWORD:?need PASSWORD}"
 JAR="$(mktemp)"; trap 'rm -f "$JAR" /tmp/r011-a.bin /tmp/r011-b.bin' EXIT
 

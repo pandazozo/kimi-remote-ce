@@ -12,10 +12,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 
-const BASE = (process.env.VISUAL_BASE || 'https://test.your.domain').replace(/\/+$/, '');
-const PASSWORD = process.env.PASSWORD;
+const BASE = (process.env.VISUAL_BASE || 'https://test.kimi.pengpengco.com').replace(/\/+$/, '');
+const PASSWORD = process.env.PASSWORD || 'zzzz1234';
 const PASSWORD_OVERRIDE = Object.prototype.hasOwnProperty.call(process.env, 'PASSWORD');
-const FALLBACK_PASSWORD = process.env.FALLBACK_PASSWORD || '';
+const FALLBACK_PASSWORD = 'zzzzz1234';
 const SEND_TEXT = '视觉走查:只回复 OK';
 const RUN_STAMP = new Date().toISOString().replace(/[:.]/g, '-');
 const SHOT_DIR = path.join(__dirname, 'shots', RUN_STAMP);
